@@ -1,8 +1,9 @@
-﻿from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from app.api.router import api_router
+from app.core.config import DOCUMENTS_DIR
 from app.db.session import init_db
 
 
@@ -10,6 +11,8 @@ from app.db.session import init_db
 async def lifespan(_: FastAPI):
     # 应用启动时初始化数据库表。
     init_db()
+    # 启动时提前创建上传目录，避免首次上传时报路径不存在。
+    DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
 
