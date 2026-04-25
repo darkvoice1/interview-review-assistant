@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "interview-review-assistant-backend"
 version = "0.1.0"
 description = "Backend service for the interview review assistant"

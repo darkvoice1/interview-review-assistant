@@ -7,7 +7,6 @@ from app.schemas.document import DocumentCreate, DocumentRead
 # 文档相关接口。
 router = APIRouter()
 
-
 @router.get("", response_model=list[DocumentRead])
 def list_documents() -> list[DocumentRead]:
     # 这里先返回占位数据，后续替换为数据库查询。
