@@ -23,4 +23,5 @@ dist/
 .env.local
 backend/.env
 frontend/.env
+/*.md
 面经复习软件-详细进度安排.md
