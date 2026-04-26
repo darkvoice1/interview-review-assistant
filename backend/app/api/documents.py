@@ -11,6 +11,7 @@ router = APIRouter()
 
 @router.get("", response_model=list[DocumentRead])
 def list_documents(session: Session = Depends(get_session)) -> list[DocumentRead]:
+    """返回当前系统中已经上传并入库的文档列表。"""
     # 接口层只负责调用服务层并组织响应结构。
     documents = document_service.list_documents(session)
     return [DocumentRead.model_validate(document) for document in documents]
@@ -21,6 +22,7 @@ async def upload_document(
     file: UploadFile,
     session: Session = Depends(get_session),
 ) -> DocumentRead:
+    """接收 Markdown 文件上传，并调用服务层完成保存与落库。"""
     # 读取上传内容后，把业务逻辑交给服务层处理。
     content_bytes = await file.read()
     try:

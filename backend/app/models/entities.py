@@ -1,7 +1,9 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
+
+from app.core.time_utils import utc_now
 
 
 # 原始导入文档。
@@ -11,7 +13,7 @@ class Document(SQLModel, table=True):
     source_type: str = "markdown"
     file_path: Optional[str] = None
     content_raw: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 # 从文档切分出的知识点。
@@ -23,7 +25,7 @@ class KnowledgeChunk(SQLModel, table=True):
     content: str
     summary: Optional[str] = None
     tags: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 # 基于知识点生成的题目。
@@ -35,14 +37,14 @@ class Question(SQLModel, table=True):
     answer: str
     analysis: Optional[str] = None
     difficulty: int = 1
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 # 每次复习提交后的历史记录。
 class ReviewRecord(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     question_id: int
-    review_time: datetime = Field(default_factory=datetime.utcnow)
+    review_time: datetime = Field(default_factory=utc_now)
     user_feedback: str
     quality_score: Optional[int] = None
     next_review_at: Optional[datetime] = None

@@ -1,6 +1,9 @@
-﻿# 规则题目生成服务。
+# 规则题目生成服务。
 class QuestionGeneratorService:
+    """根据知识点文本生成规则型题目的占位服务。"""
+
     def generate_from_chunk(self, chunk_text: str) -> list[dict]:
+        """基于单个知识点文本生成题目列表。"""
         # 空内容不生成题目。
         if not chunk_text.strip():
             return []

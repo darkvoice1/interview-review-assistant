@@ -9,15 +9,20 @@ from app.models.entities import Document
 
 # 文档服务层异常，交给接口层转换为 HTTP 错误。
 class DocumentServiceError(ValueError):
+    """表示文档业务处理过程中出现的可预期错误。"""
+
     pass
 
 
 # 文档服务，负责处理上传和查询等业务逻辑。
 class DocumentService:
+    """封装文档上传、保存和查询相关的业务逻辑。"""
+
     # 第一版只允许上传 Markdown 文件。
     allowed_extensions = {".md", ".markdown"}
 
     def list_documents(self, session: Session) -> list[Document]:
+        """从数据库读取文档列表，并按创建时间倒序返回。"""
         # 从数据库读取已上传文档，按时间倒序返回。
         statement = select(Document).order_by(Document.created_at.desc())
         return session.exec(statement).all()
@@ -28,6 +33,7 @@ class DocumentService:
         filename: str | None,
         content_bytes: bytes,
     ) -> Document:
+        """把上传的 Markdown 文件保存到磁盘并同步写入数据库。"""
         # 先校验文件名和扩展名。
         extension = self._ensure_markdown_file(filename)
 
@@ -56,6 +62,7 @@ class DocumentService:
         return document
 
     def _ensure_markdown_file(self, filename: str | None) -> str:
+        """校验上传文件名是否存在且属于允许的 Markdown 扩展名。"""
         # 第一版没有文件名时直接判定为非法上传。
         if not filename:
             raise DocumentServiceError("请上传 Markdown 文件。")

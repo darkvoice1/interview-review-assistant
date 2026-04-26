@@ -9,6 +9,7 @@ from app.db.session import init_db
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """管理应用启动和关闭阶段的初始化动作。"""
     # 应用启动时初始化数据库表。
     init_db()
     # 启动时提前创建上传目录，避免首次上传时报路径不存在。
@@ -30,6 +31,7 @@ app.include_router(api_router, prefix="/api")
 
 @app.get("/", tags=["system"])
 def root() -> dict[str, str]:
+    """返回服务基础信息，便于快速确认服务是否可用。"""
     # 返回服务基础信息，方便快速确认服务状态。
     return {
         "name": "interview-review-assistant",

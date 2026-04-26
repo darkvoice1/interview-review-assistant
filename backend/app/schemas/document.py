@@ -6,12 +6,16 @@ from pydantic import BaseModel, ConfigDict
 
 # 文档创建时的请求体。
 class DocumentCreate(BaseModel):
+    """描述新建文档时需要返回或传递的基础字段。"""
+
     title: str
     source_type: str = "markdown"
 
 
 # 文档返回给前端时的结构。
 class DocumentRead(DocumentCreate):
+    """描述文档详情或列表项返回给前端时的完整结构。"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
