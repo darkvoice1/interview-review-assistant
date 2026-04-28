@@ -21,3 +21,11 @@ class DocumentRead(DocumentCreate):
     id: int
     file_path: Optional[str] = None
     created_at: datetime
+
+
+# 文档上传完成后的结果结构。
+class DocumentUploadResult(DocumentRead):
+    """描述上传完成后返回的文档和解析摘要。"""
+
+    chunk_count: int
+    section_count: int

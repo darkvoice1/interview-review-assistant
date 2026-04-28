@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlmodel import Session
 
 from app.db.session import get_session
-from app.schemas.document import DocumentRead
+from app.schemas.document import DocumentRead, DocumentUploadResult
 from app.services.document_service import DocumentServiceError, document_service
 
 # 文档相关接口。
@@ -17,16 +17,16 @@ def list_documents(session: Session = Depends(get_session)) -> list[DocumentRead
     return [DocumentRead.model_validate(document) for document in documents]
 
 
-@router.post("/upload", response_model=DocumentRead)
+@router.post("/upload", response_model=DocumentUploadResult)
 async def upload_document(
     file: UploadFile,
     session: Session = Depends(get_session),
-) -> DocumentRead:
-    """接收 Markdown 文件上传，并调用服务层完成保存与落库。"""
+) -> DocumentUploadResult:
+    """接收 Markdown 文件上传，并调用服务层完成保存、解析与落库。"""
     # 读取上传内容后，把业务逻辑交给服务层处理。
     content_bytes = await file.read()
     try:
-        document = document_service.create_document_from_upload(
+        result = document_service.create_document_from_upload(
             session=session,
             filename=file.filename,
             content_bytes=content_bytes,
@@ -35,4 +35,8 @@ async def upload_document(
         # 服务层只抛业务异常，接口层负责转成 HTTP 错误。
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return DocumentRead.model_validate(document)
+    return DocumentUploadResult(
+        **DocumentRead.model_validate(result.document).model_dump(),
+        chunk_count=result.chunk_count,
+        section_count=result.section_count,
+    )

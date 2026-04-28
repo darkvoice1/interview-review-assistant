@@ -74,3 +74,6 @@ class MarkdownParserService:
         while cleaned_lines and not cleaned_lines[-1].strip():
             cleaned_lines.pop()
         return "\n".join(cleaned_lines).strip()
+
+
+markdown_parser_service = MarkdownParserService()
