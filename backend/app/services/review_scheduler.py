@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 
 from app.core.time_utils import utc_now
 
@@ -20,3 +20,6 @@ class ReviewSchedulerService:
         now = base_time or utc_now()
         days = self.intervals.get(feedback, 1)
         return now + timedelta(days=days)
+
+
+review_scheduler_service = ReviewSchedulerService()

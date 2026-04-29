@@ -1,4 +1,5 @@
-from datetime import datetime
+﻿from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -20,3 +21,24 @@ class ReviewTodayResponse(BaseModel):
 
     total: int
     items: list[DailyReviewItem]
+
+
+# 提交复习反馈时的请求体。
+class ReviewSubmitRequest(BaseModel):
+    """描述一次题目复习提交需要的字段。"""
+
+    question_id: int
+    user_feedback: Literal["不会", "模糊", "会"]
+
+
+# 提交复习反馈后的返回结构。
+class ReviewSubmitResponse(BaseModel):
+    """描述复习提交完成后返回给前端的结果。"""
+
+    question_id: int
+    user_feedback: Literal["不会", "模糊", "会"]
+    review_time: datetime
+    next_review_at: datetime
+    review_count: int
+    correct_streak: int
+    mastery_level: int
