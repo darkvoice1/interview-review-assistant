@@ -2,7 +2,7 @@
 from sqlmodel import Session
 
 from app.db.session import get_session
-from app.schemas.question import QuestionGenerateResult, QuestionRead
+from app.schemas.question import QuestionGenerateResult, QuestionRead, WrongQuestionRead
 from app.services.question_service import (
     QuestionDocumentNotFoundError,
     QuestionServiceError,
@@ -31,6 +31,32 @@ def generate_questions(document_id: int, session: Session = Depends(get_session)
         generated_question_count=result.generated_question_count,
         skipped_chunk_count=result.skipped_chunk_count,
     )
+
+
+@router.get("/wrong", response_model=list[WrongQuestionRead])
+def list_wrong_questions(session: Session = Depends(get_session)) -> list[WrongQuestionRead]:
+    """返回当前需要重点关注的错题列表。"""
+    items = question_service.list_wrong_questions(session)
+    return [
+        WrongQuestionRead(
+            id=item.question.id,
+            chunk_id=item.question.chunk_id,
+            document_id=item.document_id,
+            section_title=item.section_title,
+            question_type=item.question.question_type,
+            question=item.question.question,
+            answer=item.question.answer,
+            analysis=item.question.analysis,
+            difficulty=item.question.difficulty,
+            created_at=item.question.created_at,
+            source_title=item.source_title,
+            last_feedback=item.last_feedback,
+            next_review_at=item.next_review_at,
+            review_count=item.review_count,
+            mastery_level=item.mastery_level,
+        )
+        for item in items
+    ]
 
 
 @router.get("", response_model=list[QuestionRead])

@@ -79,3 +79,78 @@ def test_generate_and_list_questions_after_upload(monkeypatch, tmp_path: Path) -
             assert progresses[1].question_id == questions[1].id
     finally:
         app.dependency_overrides.clear()
+
+
+
+def test_wrong_questions_follow_review_feedback(monkeypatch, tmp_path: Path) -> None:
+    """提交不会后题目应进入错题列表，提交会后应从错题列表移出。"""
+    db_path = tmp_path / "test.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    storage_dir = tmp_path / "storage" / "documents"
+
+    monkeypatch.setattr(session_module, "engine", engine)
+    monkeypatch.setattr(main_module, "DOCUMENTS_DIR", storage_dir)
+    monkeypatch.setattr(document_service_module, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(document_service_module, "DOCUMENTS_DIR", storage_dir)
+
+    SQLModel.metadata.create_all(engine)
+
+    def override_get_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(app) as client:
+            upload_response = client.post(
+                "/api/documents/upload",
+                files={
+                    "file": (
+                        "redis.md",
+                        b"# Redis\nRedis intro.\n\n## Persistence\nAOF persistence.",
+                        "text/markdown",
+                    )
+                },
+            )
+            assert upload_response.status_code == 200
+            document_id = upload_response.json()["id"]
+
+            generate_response = client.post(f"/api/questions/generate/{document_id}")
+            assert generate_response.status_code == 200
+
+            today_response = client.get("/api/review/today")
+            assert today_response.status_code == 200
+            question_id = today_response.json()["items"][0]["question_id"]
+
+            empty_wrong_response = client.get("/api/questions/wrong")
+            assert empty_wrong_response.status_code == 200
+            assert empty_wrong_response.json() == []
+
+            submit_wrong_response = client.post(
+                "/api/review/submit",
+                json={"question_id": question_id, "user_feedback": "不会"},
+            )
+            assert submit_wrong_response.status_code == 200
+
+            wrong_response = client.get("/api/questions/wrong")
+            assert wrong_response.status_code == 200
+            wrong_data = wrong_response.json()
+            assert len(wrong_data) == 1
+            assert wrong_data[0]["id"] == question_id
+            assert wrong_data[0]["last_feedback"] == "不会"
+            assert wrong_data[0]["review_count"] == 1
+            assert wrong_data[0]["mastery_level"] == 0
+            assert wrong_data[0]["source_title"] == "Redis"
+
+            submit_right_response = client.post(
+                "/api/review/submit",
+                json={"question_id": question_id, "user_feedback": "会"},
+            )
+            assert submit_right_response.status_code == 200
+
+            cleared_wrong_response = client.get("/api/questions/wrong")
+            assert cleared_wrong_response.status_code == 200
+            assert cleared_wrong_response.json() == []
+    finally:
+        app.dependency_overrides.clear()

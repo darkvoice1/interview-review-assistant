@@ -1,8 +1,9 @@
 ﻿from dataclasses import dataclass
+from datetime import datetime
 
 from sqlmodel import Session, select
 
-from app.models.entities import Document, KnowledgeChunk, Question, QuestionProgress
+from app.models.entities import Document, KnowledgeChunk, Question, QuestionProgress, ReviewRecord
 
 
 class QuestionServiceError(ValueError):
@@ -45,6 +46,20 @@ class QuestionListItem:
     question: Question
     document_id: int
     section_title: str
+
+
+@dataclass
+class WrongQuestionListItem:
+    """描述错题列表项以及它关联的复习状态信息。"""
+
+    question: Question
+    document_id: int
+    section_title: str
+    source_title: str
+    last_feedback: str | None
+    next_review_at: datetime | None
+    review_count: int
+    mastery_level: int
 
 
 # 题目服务，负责题目生成与查询。
@@ -156,6 +171,36 @@ class QuestionService:
             for question, chunk in rows
         ]
 
+    def list_wrong_questions(self, session: Session) -> list[WrongQuestionListItem]:
+        """返回当前需要重点关注的错题列表。"""
+        statement = (
+            select(Question, KnowledgeChunk, Document, QuestionProgress)
+            .join(KnowledgeChunk, KnowledgeChunk.id == Question.chunk_id)
+            .join(Document, Document.id == KnowledgeChunk.document_id)
+            .join(QuestionProgress, QuestionProgress.question_id == Question.id)
+            .where(QuestionProgress.review_count > 0)
+            .where(QuestionProgress.mastery_level < 2)
+            .order_by(QuestionProgress.next_review_at.asc(), Question.id.asc())
+        )
+        rows = session.exec(statement).all()
+
+        items: list[WrongQuestionListItem] = []
+        for question, chunk, document, progress in rows:
+            items.append(
+                WrongQuestionListItem(
+                    question=question,
+                    document_id=chunk.document_id,
+                    section_title=chunk.section_title,
+                    source_title=document.title,
+                    last_feedback=self._load_latest_feedback(session, question.id),
+                    next_review_at=progress.next_review_at,
+                    review_count=progress.review_count,
+                    mastery_level=progress.mastery_level,
+                )
+            )
+
+        return items
+
     def _load_existing_question_chunk_ids(self, session: Session, chunk_ids: list[int]) -> set[int]:
         """读取已经生成过题目的知识点 id，用于避免重复生成。"""
         if not chunk_ids:
@@ -163,6 +208,18 @@ class QuestionService:
 
         statement = select(Question.chunk_id).where(Question.chunk_id.in_(chunk_ids))
         return set(session.exec(statement).all())
+
+    def _load_latest_feedback(self, session: Session, question_id: int | None) -> str | None:
+        """读取某道题最近一次复习反馈。"""
+        if question_id is None:
+            return None
+
+        statement = (
+            select(ReviewRecord.user_feedback)
+            .where(ReviewRecord.question_id == question_id)
+            .order_by(ReviewRecord.review_time.desc(), ReviewRecord.id.desc())
+        )
+        return session.exec(statement).first()
 
 
 question_service = QuestionService()

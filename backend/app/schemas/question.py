@@ -20,6 +20,17 @@ class QuestionRead(BaseModel):
     created_at: datetime
 
 
+# 错题列表返回给前端时的结构。
+class WrongQuestionRead(QuestionRead):
+    """描述错题列表项以及它关联的复习状态字段。"""
+
+    source_title: str
+    last_feedback: Optional[str] = None
+    next_review_at: Optional[datetime] = None
+    review_count: int
+    mastery_level: int
+
+
 # 触发题目生成后的结果结构。
 class QuestionGenerateResult(BaseModel):
     """描述一次批量生成题目后的统计结果。"""
