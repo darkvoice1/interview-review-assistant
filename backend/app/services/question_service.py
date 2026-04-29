@@ -18,6 +18,12 @@ class QuestionDocumentNotFoundError(QuestionServiceError):
     pass
 
 
+class QuestionNotFoundError(QuestionServiceError):
+    """表示查询题目详情时目标题目不存在。"""
+
+    pass
+
+
 @dataclass
 class QuestionDraft:
     """描述规则生成器产出的一道待入库题目。"""
@@ -46,6 +52,24 @@ class QuestionListItem:
     question: Question
     document_id: int
     section_title: str
+
+
+@dataclass
+class QuestionDetailItem:
+    """描述题目详情以及它关联的上下文和复习状态。"""
+
+    question: Question
+    document_id: int
+    section_title: str
+    source_title: str
+    source_type: str
+    chunk_content: str
+    review_count: int
+    correct_streak: int
+    mastery_level: int
+    last_review_at: datetime | None
+    next_review_at: datetime | None
+    last_feedback: str | None
 
 
 @dataclass
@@ -170,6 +194,35 @@ class QuestionService:
             )
             for question, chunk in rows
         ]
+
+    def get_question(self, session: Session, question_id: int) -> QuestionDetailItem:
+        """按 id 返回单个题目的详情信息。"""
+        statement = (
+            select(Question, KnowledgeChunk, Document, QuestionProgress)
+            .join(KnowledgeChunk, KnowledgeChunk.id == Question.chunk_id)
+            .join(Document, Document.id == KnowledgeChunk.document_id)
+            .join(QuestionProgress, QuestionProgress.question_id == Question.id)
+            .where(Question.id == question_id)
+        )
+        row = session.exec(statement).first()
+        if row is None:
+            raise QuestionNotFoundError("题目不存在。")
+
+        question, chunk, document, progress = row
+        return QuestionDetailItem(
+            question=question,
+            document_id=chunk.document_id,
+            section_title=chunk.section_title,
+            source_title=document.title,
+            source_type=document.source_type,
+            chunk_content=chunk.content,
+            review_count=progress.review_count,
+            correct_streak=progress.correct_streak,
+            mastery_level=progress.mastery_level,
+            last_review_at=progress.last_review_at,
+            next_review_at=progress.next_review_at,
+            last_feedback=self._load_latest_feedback(session, question.id),
+        )
 
     def list_wrong_questions(self, session: Session) -> list[WrongQuestionListItem]:
         """返回当前需要重点关注的错题列表。"""

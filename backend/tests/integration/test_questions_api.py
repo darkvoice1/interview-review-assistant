@@ -62,6 +62,18 @@ def test_generate_and_list_questions_after_upload(monkeypatch, tmp_path: Path) -
             assert all(item["document_id"] == document_id for item in list_data)
             assert all(item["question_type"] == "short_answer" for item in list_data)
 
+            question_id = list_data[0]["id"]
+            detail_response = client.get(f"/api/questions/{question_id}")
+            assert detail_response.status_code == 200
+            detail_data = detail_response.json()
+            assert detail_data["id"] == question_id
+            assert detail_data["source_title"] == "Redis"
+            assert detail_data["source_type"] == "markdown"
+            assert detail_data["chunk_content"]
+            assert detail_data["review_count"] == 0
+            assert detail_data["correct_streak"] == 0
+            assert detail_data["mastery_level"] == 0
+
             regenerate_response = client.post(f"/api/questions/generate/{document_id}")
             assert regenerate_response.status_code == 200
             regenerate_data = regenerate_response.json()

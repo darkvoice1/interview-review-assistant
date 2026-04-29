@@ -2,9 +2,10 @@
 from sqlmodel import Session
 
 from app.db.session import get_session
-from app.schemas.question import QuestionGenerateResult, QuestionRead, WrongQuestionRead
+from app.schemas.question import QuestionDetailRead, QuestionGenerateResult, QuestionRead, WrongQuestionRead
 from app.services.question_service import (
     QuestionDocumentNotFoundError,
+    QuestionNotFoundError,
     QuestionServiceError,
     question_service,
 )
@@ -57,6 +58,37 @@ def list_wrong_questions(session: Session = Depends(get_session)) -> list[WrongQ
         )
         for item in items
     ]
+
+
+@router.get("/{question_id}", response_model=QuestionDetailRead)
+def get_question(question_id: int, session: Session = Depends(get_session)) -> QuestionDetailRead:
+    """按 id 返回单个题目的详情。"""
+    try:
+        item = question_service.get_question(session, question_id)
+    except QuestionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return QuestionDetailRead(
+        id=item.question.id,
+        chunk_id=item.question.chunk_id,
+        document_id=item.document_id,
+        section_title=item.section_title,
+        question_type=item.question.question_type,
+        question=item.question.question,
+        answer=item.question.answer,
+        analysis=item.question.analysis,
+        difficulty=item.question.difficulty,
+        created_at=item.question.created_at,
+        source_title=item.source_title,
+        source_type=item.source_type,
+        chunk_content=item.chunk_content,
+        review_count=item.review_count,
+        correct_streak=item.correct_streak,
+        mastery_level=item.mastery_level,
+        last_review_at=item.last_review_at,
+        next_review_at=item.next_review_at,
+        last_feedback=item.last_feedback,
+    )
 
 
 @router.get("", response_model=list[QuestionRead])

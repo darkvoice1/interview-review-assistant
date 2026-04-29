@@ -20,6 +20,21 @@ class QuestionRead(BaseModel):
     created_at: datetime
 
 
+# 单个题目详情返回给前端时的结构。
+class QuestionDetailRead(QuestionRead):
+    """描述题目详情以及它关联的原文上下文和复习状态。"""
+
+    source_title: str
+    source_type: str
+    chunk_content: str
+    review_count: int
+    correct_streak: int
+    mastery_level: int
+    last_review_at: Optional[datetime] = None
+    next_review_at: Optional[datetime] = None
+    last_feedback: Optional[str] = None
+
+
 # 错题列表返回给前端时的结构。
 class WrongQuestionRead(QuestionRead):
     """描述错题列表项以及它关联的复习状态字段。"""
