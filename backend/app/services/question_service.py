@@ -2,7 +2,7 @@
 
 from sqlmodel import Session, select
 
-from app.models.entities import Document, KnowledgeChunk, Question
+from app.models.entities import Document, KnowledgeChunk, Question, QuestionProgress
 
 
 class QuestionServiceError(ValueError):
@@ -99,8 +99,16 @@ class QuestionService:
                     )
                 )
 
+        # 先保存题目，再为每道题初始化复习进度记录。
         for question in questions_to_create:
             session.add(question)
+
+        session.flush()
+
+        for question in questions_to_create:
+            if question.id is None:
+                continue
+            session.add(QuestionProgress(question_id=question.id))
 
         session.commit()
         return QuestionGenerationResult(

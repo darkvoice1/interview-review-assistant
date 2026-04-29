@@ -1,26 +1,28 @@
-from datetime import timedelta
+﻿from fastapi import APIRouter, Depends
+from sqlmodel import Session
 
-from fastapi import APIRouter
-
-from app.core.time_utils import utc_now
+from app.db.session import get_session
 from app.schemas.review import DailyReviewItem, ReviewTodayResponse
+from app.services.review_service import review_service
 
 # 复习任务相关接口。
 router = APIRouter()
 
 
 @router.get("/today", response_model=ReviewTodayResponse)
-def get_today_review() -> ReviewTodayResponse:
-    """返回今日待复习题单的演示数据。"""
-    # 这里先生成一份演示题单，后续接真实调度逻辑。
-    now = utc_now()
-    items = [
-        DailyReviewItem(
-            question_id=1,
-            question="什么是 Redis 的 AOF 持久化？",
-            difficulty=2,
-            due_at=now + timedelta(hours=1),
-            source_title="Redis Interview Notes",
-        )
-    ]
-    return ReviewTodayResponse(total=len(items), items=items)
+def get_today_review(session: Session = Depends(get_session)) -> ReviewTodayResponse:
+    """返回当前系统中的真实今日待复习题单。"""
+    items = review_service.list_today_reviews(session)
+    return ReviewTodayResponse(
+        total=len(items),
+        items=[
+            DailyReviewItem(
+                question_id=item.question_id,
+                question=item.question,
+                difficulty=item.difficulty,
+                due_at=item.due_at,
+                source_title=item.source_title,
+            )
+            for item in items
+        ],
+    )
