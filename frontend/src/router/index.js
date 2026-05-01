@@ -1,9 +1,10 @@
-﻿import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHistory } from "vue-router";
 
-import DocumentsView from "../views/DocumentsView.vue";
 import HomeView from "../views/HomeView.vue";
+import DocumentsView from "../views/DocumentsView.vue";
 import ReviewView from "../views/ReviewView.vue";
 import WrongQuestionsView from "../views/WrongQuestionsView.vue";
+import StatisticsView from "../views/StatisticsView.vue";
 
 const routes = [
   {
@@ -25,6 +26,11 @@ const routes = [
     path: "/wrong-questions",
     name: "wrong-questions",
     component: WrongQuestionsView,
+  },
+  {
+    path: "/statistics",
+    name: "statistics",
+    component: StatisticsView,
   },
 ];
 
