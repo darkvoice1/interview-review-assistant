@@ -61,8 +61,9 @@ test('首页可以展示统计卡片并跳转到文档页', async ({ page }) => 
 
   await page.goto('/')
 
-  await expect(page.getByText('今日待复习')).toBeVisible()
-  await expect(page.getByText('5')).toBeVisible()
+  const dueReviewCard = page.locator('.stat-card').filter({ hasText: '今日待复习' })
+  await expect(dueReviewCard).toBeVisible()
+  await expect(dueReviewCard.getByText('5', { exact: true })).toBeVisible()
   await expect(page.getByText('Redis 持久化')).toBeVisible()
 
   await page.getByText('管理文档').click()
@@ -119,10 +120,7 @@ test('文档页上传 markdown 后展示成功提示', async ({ page }) => {
 
   await page.goto('/documents')
 
-  const fileChooserPromise = page.waitForEvent('filechooser')
-  await page.locator('input[type="file"]').click({ force: true })
-  const fileChooser = await fileChooserPromise
-  await fileChooser.setFiles({
+  await page.locator('input[type="file"]').setInputFiles({
     name: 'demo.md',
     mimeType: 'text/markdown',
     buffer: Buffer.from('# Redis\n\n- AOF\n'),
@@ -201,6 +199,6 @@ test('复习页可以查看答案并提交复习结果', async ({ page }) => {
   await expect(page.getByText('什么是 B+ 树索引？')).toBeVisible()
   await page.getByText('查看答案').click()
   await expect(page.getByText('B+ 树把数据集中在叶子节点。')).toBeVisible()
-  await page.getByRole('button', { name: '会' }).click()
+  await page.getByRole('button', { name: '会', exact: true }).click()
   await expect(page.getByText('已记录“会”')).toBeVisible()
 })
