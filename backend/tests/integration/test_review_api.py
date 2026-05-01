@@ -158,3 +158,62 @@ def test_submit_review_updates_progress_and_history(monkeypatch, tmp_path: Path)
             assert target_progress.next_review_at - target_progress.last_review_at == timedelta(days=5)
     finally:
         app.dependency_overrides.clear()
+
+
+
+def test_review_stats_returns_real_counts(monkeypatch, tmp_path: Path) -> None:
+    """复习统计接口应能返回真实的最小统计数据。"""
+    db_path = tmp_path / "test.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    storage_dir = tmp_path / "storage" / "documents"
+
+    monkeypatch.setattr(session_module, "engine", engine)
+    monkeypatch.setattr(main_module, "DOCUMENTS_DIR", storage_dir)
+    monkeypatch.setattr(document_service_module, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(document_service_module, "DOCUMENTS_DIR", storage_dir)
+
+    SQLModel.metadata.create_all(engine)
+
+    def override_get_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(app) as client:
+            upload_response = client.post(
+                "/api/documents/upload",
+                files={
+                    "file": (
+                        "redis.md",
+                        b"# Redis\nRedis intro.\n\n## Persistence\nAOF persistence.",
+                        "text/markdown",
+                    )
+                },
+            )
+            assert upload_response.status_code == 200
+            document_id = upload_response.json()["id"]
+
+            generate_response = client.post(f"/api/questions/generate/{document_id}")
+            assert generate_response.status_code == 200
+
+            today_response = client.get("/api/review/today")
+            question_id = today_response.json()["items"][0]["question_id"]
+            submit_response = client.post(
+                "/api/review/submit",
+                json={"question_id": question_id, "user_feedback": "不会"},
+            )
+            assert submit_response.status_code == 200
+
+            stats_response = client.get("/api/review/stats")
+            assert stats_response.status_code == 200
+            stats_data = stats_response.json()
+            assert stats_data["document_count"] == 1
+            assert stats_data["question_count"] == 2
+            assert stats_data["review_record_count"] == 1
+            assert stats_data["reviewed_today_count"] == 1
+            assert stats_data["wrong_question_count"] == 1
+            assert stats_data["due_review_count"] == 1
+    finally:
+        app.dependency_overrides.clear()

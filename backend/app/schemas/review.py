@@ -42,3 +42,15 @@ class ReviewSubmitResponse(BaseModel):
     review_count: int
     correct_streak: int
     mastery_level: int
+
+
+# 复习统计接口返回结构。
+class ReviewStatsResponse(BaseModel):
+    """描述最小版复习统计接口返回的数据结构。"""
+
+    document_count: int
+    question_count: int
+    due_review_count: int
+    wrong_question_count: int
+    review_record_count: int
+    reviewed_today_count: int

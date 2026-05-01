@@ -46,6 +46,18 @@ class ReviewSubmitResult:
     mastery_level: int
 
 
+@dataclass
+class ReviewStatsResult:
+    """描述最小版复习统计结果。"""
+
+    document_count: int
+    question_count: int
+    due_review_count: int
+    wrong_question_count: int
+    review_record_count: int
+    reviewed_today_count: int
+
+
 # 复习服务，负责组装今日题单等复习相关业务逻辑。
 class ReviewService:
     """封装今日题单查询和复习反馈提交等业务逻辑。"""
@@ -145,6 +157,50 @@ class ReviewService:
             review_count=progress.review_count,
             correct_streak=progress.correct_streak,
             mastery_level=progress.mastery_level,
+        )
+
+    def get_stats(self, session: Session, current_time: datetime | None = None) -> ReviewStatsResult:
+        """返回最小版复习统计数据。"""
+        now = current_time or utc_now()
+        today = now.date()
+
+        document_count = len(session.exec(select(Document.id)).all())
+        question_count = len(session.exec(select(Question.id)).all())
+        review_record_count = len(session.exec(select(ReviewRecord.id)).all())
+
+        due_statement = (
+            select(QuestionProgress.id)
+            .where(
+                or_(
+                    QuestionProgress.next_review_at.is_(None),
+                    QuestionProgress.next_review_at <= now,
+                )
+            )
+        )
+        due_review_count = len(session.exec(due_statement).all())
+
+        wrong_statement = (
+            select(QuestionProgress.id)
+            .where(QuestionProgress.review_count > 0)
+            .where(QuestionProgress.mastery_level < 2)
+        )
+        wrong_question_count = len(session.exec(wrong_statement).all())
+
+        reviewed_today_count = len(
+            [
+                record_id
+                for record_id in session.exec(select(ReviewRecord.id, ReviewRecord.review_time)).all()
+                if record_id[1].date() == today
+            ]
+        )
+
+        return ReviewStatsResult(
+            document_count=document_count,
+            question_count=question_count,
+            due_review_count=due_review_count,
+            wrong_question_count=wrong_question_count,
+            review_record_count=review_record_count,
+            reviewed_today_count=reviewed_today_count,
         )
 
 

@@ -2,7 +2,13 @@
 from sqlmodel import Session
 
 from app.db.session import get_session
-from app.schemas.review import DailyReviewItem, ReviewSubmitRequest, ReviewSubmitResponse, ReviewTodayResponse
+from app.schemas.review import (
+    DailyReviewItem,
+    ReviewStatsResponse,
+    ReviewSubmitRequest,
+    ReviewSubmitResponse,
+    ReviewTodayResponse,
+)
 from app.services.review_service import ReviewQuestionNotFoundError, ReviewServiceError, review_service
 
 # 复习任务相关接口。
@@ -50,4 +56,18 @@ def submit_review(payload: ReviewSubmitRequest, session: Session = Depends(get_s
         review_count=result.review_count,
         correct_streak=result.correct_streak,
         mastery_level=result.mastery_level,
+    )
+
+
+@router.get("/stats", response_model=ReviewStatsResponse)
+def get_review_stats(session: Session = Depends(get_session)) -> ReviewStatsResponse:
+    """返回最小版复习统计信息。"""
+    stats = review_service.get_stats(session)
+    return ReviewStatsResponse(
+        document_count=stats.document_count,
+        question_count=stats.question_count,
+        due_review_count=stats.due_review_count,
+        wrong_question_count=stats.wrong_question_count,
+        review_record_count=stats.review_record_count,
+        reviewed_today_count=stats.reviewed_today_count,
     )
