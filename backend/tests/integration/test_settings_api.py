@@ -6,6 +6,7 @@ from sqlmodel import SQLModel, Session, create_engine
 import app.db.session as session_module
 from app.db.session import get_session
 from app.main import app
+from app.services.llm_service import LlmGatewayError, llm_gateway_service
 from app.services.settings_service import settings_service
 
 
@@ -100,3 +101,68 @@ def test_get_active_provider_for_task_returns_enabled_provider(tmp_path: Path) -
         assert provider is not None
         assert provider.provider_name == "openrouter"
         assert settings_service.get_active_provider_for_task(session, "question_generation") is None
+
+
+
+def test_test_provider_connectivity_returns_probe_result(monkeypatch) -> None:
+    """设置接口应能返回最小连通性测试结果。"""
+    monkeypatch.setattr(
+        llm_gateway_service,
+        "test_provider_connectivity",
+        lambda **kwargs: type(
+            "FakeConnectivityResult",
+            (),
+            {
+                "success": True,
+                "provider_name": kwargs["provider_name"],
+                "display_name": kwargs["display_name"],
+                "base_url": kwargs["base_url"],
+                "model": kwargs["default_model"],
+                "message": "pong",
+            },
+        )(),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/settings/providers/test",
+            json={
+                "provider_name": "openrouter",
+                "display_name": "OpenRouter",
+                "base_url": "https://openrouter.ai/api/v1",
+                "api_key": "sk-or-v1-1234567890abcdef",
+                "default_model": "openai/gpt-4.1-mini",
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["provider_name"] == "openrouter"
+    assert data["model"] == "openai/gpt-4.1-mini"
+    assert data["message"] == "pong"
+
+
+
+def test_test_provider_connectivity_returns_400_when_gateway_rejects(monkeypatch) -> None:
+    """设置接口应能把网关层的配置错误转成 400。"""
+    monkeypatch.setattr(
+        llm_gateway_service,
+        "test_provider_connectivity",
+        lambda **kwargs: (_ for _ in ()).throw(LlmGatewayError("厂商配置不完整，至少需要可用的 api_key 和 model。")),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/settings/providers/test",
+            json={
+                "provider_name": "openrouter",
+                "display_name": "OpenRouter",
+                "base_url": "https://openrouter.ai/api/v1",
+                "api_key": "sk-or-v1-1234567890abcdef",
+                "default_model": "",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "厂商配置不完整，至少需要可用的 api_key 和 model。"

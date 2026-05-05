@@ -39,3 +39,24 @@ class SettingsSummaryRead(BaseModel):
     providers: list[LlmProviderSettingRead]
     active_chunking_provider_id: Optional[int] = None
     active_question_generation_provider_id: Optional[int] = None
+
+
+class LlmProviderConnectivityTestRequest(BaseModel):
+    """描述前端发起厂商连通性测试时提交的配置。"""
+
+    provider_name: str
+    display_name: str
+    base_url: Optional[str] = None
+    api_key: str = Field(min_length=1)
+    default_model: Optional[str] = None
+
+
+class LlmProviderConnectivityTestRead(BaseModel):
+    """描述厂商连通性测试的返回结果。"""
+
+    success: bool
+    provider_name: str
+    display_name: str
+    base_url: str
+    model: str
+    message: str

@@ -1,8 +1,15 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from app.db.session import get_session
-from app.schemas.settings import LlmProviderSettingCreate, LlmProviderSettingRead, SettingsSummaryRead
+from app.schemas.settings import (
+    LlmProviderConnectivityTestRead,
+    LlmProviderConnectivityTestRequest,
+    LlmProviderSettingCreate,
+    LlmProviderSettingRead,
+    SettingsSummaryRead,
+)
+from app.services.llm_service import LlmGatewayError, llm_gateway_service
 from app.services.settings_service import settings_service
 
 router = APIRouter()
@@ -60,4 +67,28 @@ def save_provider(payload: LlmProviderSettingCreate, session: Session = Depends(
         use_for_question_generation=provider.use_for_question_generation,
         created_at=provider.created_at,
         updated_at=provider.updated_at,
+    )
+
+
+@router.post("/providers/test", response_model=LlmProviderConnectivityTestRead)
+def test_provider_connectivity(payload: LlmProviderConnectivityTestRequest) -> LlmProviderConnectivityTestRead:
+    """使用前端当前填写的配置做一次最小连通性测试。"""
+    try:
+        result = llm_gateway_service.test_provider_connectivity(
+            provider_name=payload.provider_name,
+            display_name=payload.display_name,
+            base_url=payload.base_url,
+            api_key=payload.api_key,
+            default_model=payload.default_model,
+        )
+    except LlmGatewayError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return LlmProviderConnectivityTestRead(
+        success=result.success,
+        provider_name=result.provider_name,
+        display_name=result.display_name,
+        base_url=result.base_url,
+        model=result.model,
+        message=result.message,
     )

@@ -29,6 +29,18 @@ class LlmProviderConfig:
     model: str
 
 
+@dataclass
+class LlmConnectivityResult:
+    """描述一次厂商连通性测试的返回结果。"""
+
+    success: bool
+    provider_name: str
+    display_name: str
+    model: str
+    base_url: str
+    message: str
+
+
 class LlmGatewayService:
     """统一负责读取已启用厂商配置并发起 OpenAI 兼容调用。"""
 
@@ -58,20 +70,76 @@ class LlmGatewayService:
         provider = session.exec(statement).first()
         if provider is None:
             return None
+        return self._build_provider_config(provider)
 
-        base_url = (provider.base_url or self.default_base_urls.get(provider.provider_name.lower()) or self.default_base_urls["openai"]).rstrip("/")
-        model = (provider.default_model or "").strip()
-        api_key = (provider.api_key or "").strip()
-        if not model or not api_key:
-            return None
-
-        return LlmProviderConfig(
-            provider_id=provider.id or 0,
-            provider_name=provider.provider_name,
-            display_name=provider.display_name,
+    def build_provider_config(
+        self,
+        *,
+        provider_name: str,
+        display_name: str,
+        base_url: str | None,
+        api_key: str,
+        default_model: str | None,
+        provider_id: int = 0,
+    ) -> LlmProviderConfig:
+        """基于前端传入的厂商配置构建标准化的调用配置。"""
+        provider = LlmProviderSetting(
+            id=provider_id or None,
+            provider_name=provider_name,
+            display_name=display_name,
             base_url=base_url,
             api_key=api_key,
-            model=model,
+            default_model=default_model,
+        )
+        config = self._build_provider_config(provider)
+        if config is None:
+            raise LlmGatewayError("厂商配置不完整，至少需要可用的 api_key 和 model。")
+        return config
+
+    def test_provider_connectivity(
+        self,
+        *,
+        provider_name: str,
+        display_name: str,
+        base_url: str | None,
+        api_key: str,
+        default_model: str | None,
+        timeout: float = 15.0,
+    ) -> LlmConnectivityResult:
+        """使用给定配置发起最小请求，验证厂商连通性。"""
+        provider = self.build_provider_config(
+            provider_name=provider_name,
+            display_name=display_name,
+            base_url=base_url,
+            api_key=api_key,
+            default_model=default_model,
+        )
+
+        try:
+            content = self._request_chat_completion_content(
+                provider,
+                system_prompt="你是一个只会回复 pong 的连通性测试助手。",
+                user_prompt="ping",
+                temperature=0.0,
+                timeout=timeout,
+                max_tokens=8,
+            )
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response is not None else "unknown"
+            raise LlmGatewayError(f"连通性测试失败，HTTP 状态码：{status_code}。") from exc
+        except httpx.HTTPError as exc:
+            raise LlmGatewayError(f"连通性测试失败：{exc}") from exc
+        except (KeyError, IndexError, ValueError) as exc:
+            raise LlmGatewayError("连通性测试失败：厂商返回格式不符合预期。") from exc
+
+        message = content.strip() or "调用成功，但返回内容为空。"
+        return LlmConnectivityResult(
+            success=True,
+            provider_name=provider.provider_name,
+            display_name=provider.display_name,
+            model=provider.model,
+            base_url=provider.base_url,
+            message=message,
         )
 
     def chat_json(
@@ -101,6 +169,27 @@ class LlmGatewayService:
         except (httpx.HTTPError, KeyError, IndexError, ValueError, json.JSONDecodeError):
             return None
 
+    def _build_provider_config(self, provider: LlmProviderSetting) -> LlmProviderConfig | None:
+        """把数据库实体或临时配置转换成标准化调用配置。"""
+        base_url = (
+            provider.base_url
+            or self.default_base_urls.get(provider.provider_name.lower())
+            or self.default_base_urls["openai"]
+        ).rstrip("/")
+        model = (provider.default_model or "").strip()
+        api_key = (provider.api_key or "").strip()
+        if not model or not api_key:
+            return None
+
+        return LlmProviderConfig(
+            provider_id=provider.id or 0,
+            provider_name=provider.provider_name,
+            display_name=provider.display_name,
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+        )
+
     def _request_chat_completion_content(
         self,
         provider: LlmProviderConfig,
@@ -109,6 +198,7 @@ class LlmGatewayService:
         user_prompt: str,
         temperature: float,
         timeout: float,
+        max_tokens: int | None = None,
     ) -> str:
         """调用 OpenAI 兼容聊天接口并返回 message content。"""
         url = self._build_chat_completions_url(provider.base_url)
@@ -120,6 +210,9 @@ class LlmGatewayService:
                 {"role": "user", "content": user_prompt},
             ],
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+
         headers = {
             "Authorization": f"Bearer {provider.api_key}",
             "Content-Type": "application/json",
