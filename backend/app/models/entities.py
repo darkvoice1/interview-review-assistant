@@ -72,3 +72,19 @@ class QuestionProgress(SQLModel, table=True):
     last_review_at: Optional[datetime] = None
     next_review_at: Optional[datetime] = None
     mastery_level: int = 0
+
+
+class LlmProviderSetting(SQLModel, table=True):
+    """保存单个大模型厂商配置及启用状态。"""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    provider_name: str
+    display_name: str
+    base_url: Optional[str] = None
+    api_key: str
+    default_model: Optional[str] = None
+    is_enabled: bool = True
+    use_for_chunking: bool = False
+    use_for_question_generation: bool = False
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)

@@ -2,7 +2,7 @@ from sqlalchemy import inspect, text
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.core.config import DATABASE_URL
-from app.models.entities import Document, KnowledgeChunk, Question, QuestionProgress, ReviewRecord
+from app.models.entities import Document, KnowledgeChunk, LlmProviderSetting, Question, QuestionProgress, ReviewRecord
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
@@ -41,6 +41,21 @@ def _apply_sqlite_dev_migrations() -> None:
         for column_name, statement in missing_question_columns.items():
             if column_name not in question_columns:
                 connection.execute(text(statement))
+
+        provider_columns = {column["name"] for column in inspector.get_columns("llmprovidersetting")} if "llmprovidersetting" in inspector.get_table_names() else set()
+        if "llmprovidersetting" in inspector.get_table_names():
+            missing_provider_columns = {
+                "display_name": "ALTER TABLE llmprovidersetting ADD COLUMN display_name VARCHAR DEFAULT ''",
+                "base_url": "ALTER TABLE llmprovidersetting ADD COLUMN base_url VARCHAR",
+                "default_model": "ALTER TABLE llmprovidersetting ADD COLUMN default_model VARCHAR",
+                "is_enabled": "ALTER TABLE llmprovidersetting ADD COLUMN is_enabled BOOLEAN DEFAULT 1",
+                "use_for_chunking": "ALTER TABLE llmprovidersetting ADD COLUMN use_for_chunking BOOLEAN DEFAULT 0",
+                "use_for_question_generation": "ALTER TABLE llmprovidersetting ADD COLUMN use_for_question_generation BOOLEAN DEFAULT 0",
+                "updated_at": "ALTER TABLE llmprovidersetting ADD COLUMN updated_at TIMESTAMP",
+            }
+            for column_name, statement in missing_provider_columns.items():
+                if column_name not in provider_columns:
+                    connection.execute(text(statement))
 
 
 def get_session():
