@@ -1,4 +1,4 @@
-﻿from sqlmodel import Session, select
+from sqlmodel import Session, select
 
 from app.models.entities import KnowledgeChunk
 
@@ -6,10 +6,7 @@ from app.models.entities import KnowledgeChunk
 class ChunkServiceError(ValueError):
     """表示知识点业务处理中出现的可预期错误。"""
 
-    pass
 
-
-# 知识点切分服务，负责把解析结果转换成可落库的知识点对象。
 class ChunkService:
     """根据解析后的 section 结果生成并查询知识点实体。"""
 
@@ -23,6 +20,7 @@ class ChunkService:
                     document_id=document_id,
                     section_title=section["section_title"],
                     section_level=section["section_level"],
+                    section_path=section.get("section_path") or section["section_title"],
                     content=section["content"],
                 )
             )

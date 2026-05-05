@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, Session, create_engine, select
@@ -60,7 +60,10 @@ def test_generate_and_list_questions_after_upload(monkeypatch, tmp_path: Path) -
             assert len(list_data) == 2
             assert {item["section_title"] for item in list_data} == {"Redis", "Persistence"}
             assert all(item["document_id"] == document_id for item in list_data)
-            assert all(item["question_type"] == "short_answer" for item in list_data)
+            assert all(item["source_excerpt"] for item in list_data)
+            assert all(item["evidence_kind"] for item in list_data)
+            assert all(item["evidence_index"] == 0 for item in list_data)
+            assert list_data[0]["section_path"]
 
             question_id = list_data[0]["id"]
             detail_response = client.get(f"/api/questions/{question_id}")
@@ -70,6 +73,10 @@ def test_generate_and_list_questions_after_upload(monkeypatch, tmp_path: Path) -
             assert detail_data["source_title"] == "Redis"
             assert detail_data["source_type"] == "markdown"
             assert detail_data["chunk_content"]
+            assert detail_data["source_excerpt"]
+            assert detail_data["evidence_kind"]
+            assert detail_data["evidence_start"] is not None
+            assert detail_data["evidence_end"] is not None
             assert detail_data["review_count"] == 0
             assert detail_data["correct_streak"] == 0
             assert detail_data["mastery_level"] == 0
@@ -85,8 +92,11 @@ def test_generate_and_list_questions_after_upload(monkeypatch, tmp_path: Path) -
             progresses = session.exec(select(QuestionProgress).order_by(QuestionProgress.question_id)).all()
             assert len(questions) == 2
             assert len(progresses) == 2
-            assert questions[0].question == "Redis 的核心内容是什么？"
-            assert questions[1].question == "Persistence 的核心内容是什么？"
+            assert questions[0].source_excerpt
+            assert questions[0].evidence_kind is not None
+            assert questions[0].evidence_index == 0
+            assert questions[0].evidence_start is not None
+            assert questions[0].evidence_end is not None
             assert progresses[0].question_id == questions[0].id
             assert progresses[1].question_id == questions[1].id
     finally:
@@ -154,6 +164,8 @@ def test_wrong_questions_follow_review_feedback(monkeypatch, tmp_path: Path) -> 
             assert wrong_data[0]["review_count"] == 1
             assert wrong_data[0]["mastery_level"] == 0
             assert wrong_data[0]["source_title"] == "Redis"
+            assert wrong_data[0]["evidence_kind"]
+            assert wrong_data[0]["section_path"]
 
             submit_right_response = client.post(
                 "/api/review/submit",

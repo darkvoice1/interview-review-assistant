@@ -1,4 +1,4 @@
-from app.services.markdown_parser import MarkdownParserService
+from app.services.document_service import MarkdownParserService
 
 
 def test_parse_extracts_title_preface_and_sections() -> None:
@@ -23,6 +23,9 @@ Append only file.
     assert result["section_count"] == 3
     assert result["sections"][0]["section_title"] == "Redis"
     assert result["sections"][0]["section_level"] == 1
+    assert result["sections"][0]["section_path"] == "Redis"
     assert result["sections"][0]["content"] == "Redis is an in-memory store."
     assert result["sections"][1]["section_title"] == "Persistence"
+    assert result["sections"][1]["section_path"] == "Redis > Persistence"
     assert result["sections"][2]["section_title"] == "AOF"
+    assert result["sections"][2]["section_path"] == "Redis > Persistence > AOF"

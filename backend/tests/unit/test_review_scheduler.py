@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.services.review_scheduler import ReviewSchedulerService
+from app.services.review_service import ReviewSchedulerService
 
 
 def test_next_review_at_uses_expected_intervals() -> None:

@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from app.db.session import get_session
@@ -10,7 +10,6 @@ from app.services.question_service import (
     question_service,
 )
 
-# 题目相关接口。
 router = APIRouter()
 
 
@@ -20,10 +19,8 @@ def generate_questions(document_id: int, session: Session = Depends(get_session)
     try:
         result = question_service.generate_questions_for_document(session, document_id)
     except QuestionDocumentNotFoundError as exc:
-        # 文档不存在时返回 404，方便前端明确提示。
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QuestionServiceError as exc:
-        # 其他可预期业务异常统一返回 400。
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return QuestionGenerateResult(
@@ -44,9 +41,15 @@ def list_wrong_questions(session: Session = Depends(get_session)) -> list[WrongQ
             chunk_id=item.question.chunk_id,
             document_id=item.document_id,
             section_title=item.section_title,
+            section_path=item.section_path,
             question_type=item.question.question_type,
             question=item.question.question,
             answer=item.question.answer,
+            source_excerpt=item.question.source_excerpt,
+            evidence_kind=item.question.evidence_kind,
+            evidence_index=item.question.evidence_index,
+            evidence_start=item.question.evidence_start,
+            evidence_end=item.question.evidence_end,
             analysis=item.question.analysis,
             difficulty=item.question.difficulty,
             created_at=item.question.created_at,
@@ -73,6 +76,7 @@ def get_question(question_id: int, session: Session = Depends(get_session)) -> Q
         chunk_id=item.question.chunk_id,
         document_id=item.document_id,
         section_title=item.section_title,
+        section_path=item.section_path,
         question_type=item.question.question_type,
         question=item.question.question,
         answer=item.question.answer,
@@ -82,6 +86,11 @@ def get_question(question_id: int, session: Session = Depends(get_session)) -> Q
         source_title=item.source_title,
         source_type=item.source_type,
         chunk_content=item.chunk_content,
+        source_excerpt=item.question.source_excerpt,
+        evidence_kind=item.question.evidence_kind,
+        evidence_index=item.question.evidence_index,
+        evidence_start=item.question.evidence_start,
+        evidence_end=item.question.evidence_end,
         review_count=item.review_count,
         correct_streak=item.correct_streak,
         mastery_level=item.mastery_level,
@@ -104,9 +113,15 @@ def list_questions(
             chunk_id=item.question.chunk_id,
             document_id=item.document_id,
             section_title=item.section_title,
+            section_path=item.section_path,
             question_type=item.question.question_type,
             question=item.question.question,
             answer=item.question.answer,
+            source_excerpt=item.question.source_excerpt,
+            evidence_kind=item.question.evidence_kind,
+            evidence_index=item.question.evidence_index,
+            evidence_start=item.question.evidence_start,
+            evidence_end=item.question.evidence_end,
             analysis=item.question.analysis,
             difficulty=item.question.difficulty,
             created_at=item.question.created_at,
