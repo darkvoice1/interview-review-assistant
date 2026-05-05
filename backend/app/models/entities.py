@@ -25,6 +25,8 @@ class KnowledgeChunk(SQLModel, table=True):
     section_title: str
     section_level: int = 1
     section_path: Optional[str] = None
+    chunk_index: int = 0
+    chunk_type: str = "paragraph"
     content: str
     summary: Optional[str] = None
     tags: Optional[str] = None

@@ -11,8 +11,9 @@ from app.main import app
 from app.models.entities import KnowledgeChunk
 
 
+
 def test_upload_and_list_documents(monkeypatch, tmp_path: Path) -> None:
-    """上传接口应能保存 Markdown、解析标题并生成知识点。"""
+    """上传接口应能保存 Markdown、解析标题并生成更细粒度知识点。"""
     db_path = tmp_path / "test.db"
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
     storage_dir = tmp_path / "storage" / "documents"
@@ -37,7 +38,7 @@ def test_upload_and_list_documents(monkeypatch, tmp_path: Path) -> None:
                 files={
                     "file": (
                         "redis.md",
-                        b"# Redis\nRedis intro.\n\n## Persistence\nAOF persistence.",
+                        b"# Redis\nRedis intro.\n\n- fast\n- simple\n\n## Persistence\nAOF persistence.",
                         "text/markdown",
                     )
                 },
@@ -47,7 +48,7 @@ def test_upload_and_list_documents(monkeypatch, tmp_path: Path) -> None:
             assert upload_data["title"] == "Redis"
             assert upload_data["source_type"] == "markdown"
             assert upload_data["file_path"].startswith("storage/documents/")
-            assert upload_data["chunk_count"] == 2
+            assert upload_data["chunk_count"] == 3
             assert upload_data["section_count"] == 2
 
             list_response = client.get("/api/documents")
@@ -59,9 +60,12 @@ def test_upload_and_list_documents(monkeypatch, tmp_path: Path) -> None:
             assert len(list(storage_dir.glob("*.md"))) == 1
 
         with Session(engine) as session:
-            chunks = session.exec(select(KnowledgeChunk).order_by(KnowledgeChunk.section_level)).all()
-            assert len(chunks) == 2
+            chunks = session.exec(select(KnowledgeChunk).order_by(KnowledgeChunk.section_level, KnowledgeChunk.chunk_index)).all()
+            assert len(chunks) == 3
             assert chunks[0].section_title == "Redis"
-            assert chunks[1].section_title == "Persistence"
+            assert chunks[0].chunk_type == "paragraph"
+            assert chunks[1].section_title == "Redis"
+            assert chunks[1].chunk_type == "unordered_list"
+            assert chunks[2].section_title == "Persistence"
     finally:
         app.dependency_overrides.clear()

@@ -22,8 +22,14 @@ def _apply_sqlite_dev_migrations() -> None:
         inspector = inspect(connection)
 
         chunk_columns = {column["name"] for column in inspector.get_columns("knowledgechunk")}
-        if "section_path" not in chunk_columns:
-            connection.execute(text("ALTER TABLE knowledgechunk ADD COLUMN section_path VARCHAR"))
+        missing_chunk_columns = {
+            "section_path": "ALTER TABLE knowledgechunk ADD COLUMN section_path VARCHAR",
+            "chunk_index": "ALTER TABLE knowledgechunk ADD COLUMN chunk_index INTEGER DEFAULT 0",
+            "chunk_type": "ALTER TABLE knowledgechunk ADD COLUMN chunk_type VARCHAR DEFAULT 'paragraph'",
+        }
+        for column_name, statement in missing_chunk_columns.items():
+            if column_name not in chunk_columns:
+                connection.execute(text(statement))
 
         question_columns = {column["name"] for column in inspector.get_columns("question")}
         missing_question_columns = {

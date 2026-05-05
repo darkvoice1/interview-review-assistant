@@ -10,8 +10,9 @@ from app.db.session import get_session
 from app.main import app
 
 
+
 def test_list_and_get_chunks_after_upload(monkeypatch, tmp_path: Path) -> None:
-    """上传文档后应能通过 chunks 接口查询知识点列表和详情。"""
+    """上传文档后应能通过 chunks 接口查询细粒度知识点列表和详情。"""
     db_path = tmp_path / "test.db"
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
     storage_dir = tmp_path / "storage" / "documents"
@@ -36,7 +37,7 @@ def test_list_and_get_chunks_after_upload(monkeypatch, tmp_path: Path) -> None:
                 files={
                     "file": (
                         "redis.md",
-                        b"# Redis\nRedis intro.\n\n## Persistence\nAOF persistence.",
+                        b"# Redis\nRedis intro.\n\n- fast\n- simple\n\n## Persistence\nAOF persistence.",
                         "text/markdown",
                     )
                 },
@@ -45,8 +46,11 @@ def test_list_and_get_chunks_after_upload(monkeypatch, tmp_path: Path) -> None:
             list_response = client.get("/api/chunks")
             assert list_response.status_code == 200
             chunks = list_response.json()
-            assert len(chunks) == 2
-            assert chunks[0]["section_title"] in {"Redis", "Persistence"}
+            assert len(chunks) >= 3
+            assert all("chunk_type" in item for item in chunks)
+            assert all("chunk_index" in item for item in chunks)
+            assert all("section_path" in item for item in chunks)
+            assert any(item["chunk_type"] == "unordered_list" for item in chunks)
 
             chunk_id = chunks[0]["id"]
             detail_response = client.get(f"/api/chunks/{chunk_id}")
@@ -54,6 +58,8 @@ def test_list_and_get_chunks_after_upload(monkeypatch, tmp_path: Path) -> None:
             detail = detail_response.json()
             assert detail["id"] == chunk_id
             assert detail["content"]
+            assert detail["chunk_type"]
+            assert detail["section_path"]
 
             missing_response = client.get("/api/chunks/99999")
             assert missing_response.status_code == 404
