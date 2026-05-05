@@ -65,7 +65,7 @@ class DocumentUploadService:
             session.add(document)
             session.flush()
 
-            chunks = chunk_service.create_chunks(document.id, parsed_result["sections"])
+            chunks = chunk_service.create_chunks(document.id, parsed_result["sections"], session=session)
             for chunk in chunks:
                 session.add(chunk)
 

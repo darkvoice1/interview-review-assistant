@@ -45,3 +45,13 @@ def test_create_chunks_keeps_code_block_and_image_context() -> None:
     assert chunks[0].chunk_type == "paragraph"
     assert "```python" in chunks[0].content
     assert "![diagram](aof.png)" in chunks[0].content
+
+
+def test_build_blocks_from_groups_returns_none_for_invalid_group_order() -> None:
+    """AI 返回非相邻分组时应拒绝采用，避免破坏原始顺序。"""
+    service = ChunkService()
+    blocks = service._split_section_blocks("第一段。\n\n第二段。\n\n第三段。")
+
+    regrouped = service._build_blocks_from_groups(blocks, [[0, 2], [1]])
+
+    assert regrouped is None

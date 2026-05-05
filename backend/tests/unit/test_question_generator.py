@@ -70,3 +70,13 @@ def test_generate_drafts_from_chunk_returns_empty_for_blank_content() -> None:
     drafts = service.generate_drafts_from_chunk("Redis", "   ")
 
     assert drafts == []
+
+
+def test_generate_drafts_from_chunk_falls_back_when_no_ai_session() -> None:
+    """未传入 session 时应继续走本地规则题目生成。"""
+    service = QuestionService()
+
+    drafts = service.generate_drafts_from_chunk("Redis", "Redis 是一个内存数据库。")
+
+    assert drafts[0].question == "什么是 Redis？"
+    assert drafts[0].analysis

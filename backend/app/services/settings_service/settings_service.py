@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from sqlmodel import Session, select
 
 from app.core.time_utils import utc_now
 from app.models.entities import LlmProviderSetting
+
+SettingsTask = Literal["chunking", "question_generation"]
 
 
 class SettingsServiceError(ValueError):
@@ -32,6 +35,11 @@ class SettingsSummaryResult:
 class SettingsService:
     """封装大模型厂商配置的保存、查询和启用切换逻辑。"""
 
+    task_flag_mapping = {
+        "chunking": "use_for_chunking",
+        "question_generation": "use_for_question_generation",
+    }
+
     def list_settings(self, session: Session) -> SettingsSummaryResult:
         """返回当前所有大模型厂商配置和启用状态。"""
         statement = select(LlmProviderSetting).order_by(LlmProviderSetting.id.asc())
@@ -46,11 +54,11 @@ class SettingsService:
         ]
 
         active_chunking_provider_id = next(
-            (provider.id for provider in providers if provider.use_for_chunking),
+            (provider.id for provider in providers if provider.use_for_chunking and provider.is_enabled),
             None,
         )
         active_question_generation_provider_id = next(
-            (provider.id for provider in providers if provider.use_for_question_generation),
+            (provider.id for provider in providers if provider.use_for_question_generation and provider.is_enabled),
             None,
         )
 
@@ -59,6 +67,19 @@ class SettingsService:
             active_chunking_provider_id=active_chunking_provider_id,
             active_question_generation_provider_id=active_question_generation_provider_id,
         )
+
+    def get_active_provider_for_task(self, session: Session, task: SettingsTask) -> LlmProviderSetting | None:
+        """返回某个任务当前启用且可用的厂商配置。"""
+        flag_name = self.task_flag_mapping[task]
+        statement = (
+            select(LlmProviderSetting)
+            .where(
+                LlmProviderSetting.is_enabled == True,
+                getattr(LlmProviderSetting, flag_name) == True,
+            )
+            .order_by(LlmProviderSetting.updated_at.desc(), LlmProviderSetting.id.desc())
+        )
+        return session.exec(statement).first()
 
     def save_provider(
         self,

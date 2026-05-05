@@ -6,6 +6,7 @@ from sqlmodel import SQLModel, Session, create_engine
 import app.db.session as session_module
 from app.db.session import get_session
 from app.main import app
+from app.services.settings_service import settings_service
 
 
 
@@ -72,3 +73,30 @@ def test_save_and_list_llm_provider_settings(monkeypatch, tmp_path: Path) -> Non
             assert providers["qwen"]["use_for_question_generation"] is True
     finally:
         app.dependency_overrides.clear()
+
+
+
+def test_get_active_provider_for_task_returns_enabled_provider(tmp_path: Path) -> None:
+    """设置服务应能按任务取回当前启用且可用的厂商。"""
+    db_path = tmp_path / "test.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        settings_service.save_provider(
+            session,
+            provider_name="openrouter",
+            display_name="OpenRouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key="sk-or-v1-1234567890abcdef",
+            default_model="openai/gpt-4.1-mini",
+            is_enabled=True,
+            use_for_chunking=True,
+            use_for_question_generation=False,
+        )
+
+    with Session(engine) as session:
+        provider = settings_service.get_active_provider_for_task(session, "chunking")
+        assert provider is not None
+        assert provider.provider_name == "openrouter"
+        assert settings_service.get_active_provider_for_task(session, "question_generation") is None

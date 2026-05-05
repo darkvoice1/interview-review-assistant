@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
 from sqlmodel import Session, select
 
 from app.models.entities import KnowledgeChunk
+from app.services.llm_service import llm_gateway_service
 
 
 class ChunkServiceError(ValueError):
@@ -27,17 +29,22 @@ class ChunkService:
     unordered_list_pattern = re.compile(r"^\s*[-*+]\s+")
     image_pattern = re.compile(r"!\[[^\]]*\]\([^\)]+\)")
 
-    def create_chunks(self, document_id: int, sections: list[dict]) -> list[KnowledgeChunk]:
+    def create_chunks(self, document_id: int, sections: list[dict], session: Session | None = None) -> list[KnowledgeChunk]:
         """把 section 列表转换成更细粒度的知识点对象列表。"""
         chunks: list[KnowledgeChunk] = []
 
         for section in sections:
-            section_chunks = self._build_chunks_for_section(document_id, section)
+            section_chunks = self._build_chunks_for_section(document_id, section, session=session)
             chunks.extend(section_chunks)
 
         return chunks
 
-    def _build_chunks_for_section(self, document_id: int, section: dict) -> list[KnowledgeChunk]:
+    def _build_chunks_for_section(
+        self,
+        document_id: int,
+        section: dict,
+        session: Session | None = None,
+    ) -> list[KnowledgeChunk]:
         """把单个 section 拆成多个更合理的 chunk。"""
         blocks = self._split_section_blocks(section["content"])
         if not blocks:
@@ -54,6 +61,9 @@ class ChunkService:
             ]
 
         merged_blocks = self._merge_blocks(blocks)
+        ai_blocks = self._try_ai_regroup_blocks(session, merged_blocks) if session is not None else None
+        final_blocks = ai_blocks or merged_blocks
+
         return [
             KnowledgeChunk(
                 document_id=document_id,
@@ -64,7 +74,7 @@ class ChunkService:
                 chunk_type=block.block_type,
                 content=block.content,
             )
-            for index, block in enumerate(merged_blocks)
+            for index, block in enumerate(final_blocks)
         ]
 
     def _split_section_blocks(self, content: str) -> list[SectionBlock]:
@@ -185,6 +195,87 @@ class ChunkService:
                 merged.append(block)
 
         return merged
+
+    def _try_ai_regroup_blocks(self, session: Session, blocks: list[SectionBlock]) -> list[SectionBlock] | None:
+        """尝试让大模型只做块分组决策，失败时回退本地结果。"""
+        if len(blocks) < 3:
+            return None
+
+        block_payload = [
+            {
+                "index": index,
+                "block_type": block.block_type,
+                "content": block.content,
+            }
+            for index, block in enumerate(blocks)
+        ]
+        response = llm_gateway_service.chat_json(
+            session,
+            "chunking",
+            system_prompt=(
+                "你是一个 Markdown 知识整理助手。"
+                "你不能改写事实，只能基于给定 blocks 判断哪些相邻 blocks 应该合并成同一个 chunk。"
+                "请只返回 JSON，对象格式必须为 {\"groups\": [[0], [1, 2]]}。"
+            ),
+            user_prompt=(
+                "请把下面这些按顺序出现的 blocks  regroup 成更适合出题和复习的 chunks。"
+                "要求：\n"
+                "1. 只能合并相邻 blocks，不能调整顺序。\n"
+                "2. 不要遗漏任何 index。\n"
+                "3. 尽量让每个 chunk 围绕一个完整小知识点。\n"
+                f"4. 原始 blocks JSON 如下：\n{json.dumps(block_payload, ensure_ascii=False)}"
+            ),
+            temperature=0.1,
+        )
+        if response is None:
+            return None
+
+        groups = response.get("groups")
+        if not isinstance(groups, list):
+            return None
+
+        regrouped = self._build_blocks_from_groups(blocks, groups)
+        return regrouped or None
+
+    def _build_blocks_from_groups(self, blocks: list[SectionBlock], groups: list[object]) -> list[SectionBlock] | None:
+        """根据模型返回的相邻分组结果重新构建 blocks。"""
+        normalized_groups: list[list[int]] = []
+        seen_indexes: list[int] = []
+
+        for group in groups:
+            if not isinstance(group, list) or not group:
+                return None
+            normalized_group: list[int] = []
+            for item in group:
+                if not isinstance(item, int):
+                    return None
+                if item < 0 or item >= len(blocks):
+                    return None
+                normalized_group.append(item)
+                seen_indexes.append(item)
+            normalized_groups.append(normalized_group)
+
+        if sorted(seen_indexes) != list(range(len(blocks))):
+            return None
+
+        regrouped: list[SectionBlock] = []
+        for group in normalized_groups:
+            if group != list(range(group[0], group[0] + len(group))):
+                return None
+
+            grouped_blocks = [blocks[index] for index in group]
+            block_type = grouped_blocks[0].block_type
+            if any(block.block_type != block_type for block in grouped_blocks):
+                block_type = "paragraph"
+
+            regrouped.append(
+                SectionBlock(
+                    block_type=block_type,
+                    content="\n\n".join(block.content for block in grouped_blocks).strip(),
+                )
+            )
+
+        return regrouped
 
     def _should_merge(self, previous: SectionBlock, current: SectionBlock) -> bool:
         """判断两个相邻块是否应该合并为同一个 chunk。"""

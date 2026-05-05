@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from sqlmodel import Session, select
 
 from app.models.entities import Document, KnowledgeChunk, Question, QuestionProgress
+from app.services.llm_service import llm_gateway_service
 
 
 class QuestionServiceError(ValueError):
@@ -96,6 +97,7 @@ class QuestionGenerationService:
                 continue
 
             drafts = self.generate_drafts_from_chunk(
+                session=session,
                 section_title=chunk.section_title,
                 chunk_text=chunk.content,
             )
@@ -134,7 +136,12 @@ class QuestionGenerationService:
             skipped_chunk_count=skipped_chunk_count,
         )
 
-    def generate_drafts_from_chunk(self, section_title: str, chunk_text: str) -> list[QuestionDraft]:
+    def generate_drafts_from_chunk(
+        self,
+        section_title: str,
+        chunk_text: str,
+        session: Session | None = None,
+    ) -> list[QuestionDraft]:
         """基于单个知识点文本生成待入库题目草稿。"""
         normalized_text = chunk_text.strip()
         if not normalized_text:
@@ -149,7 +156,16 @@ class QuestionGenerationService:
         if not self._is_usable_source_excerpt(answer_excerpt):
             return []
 
-        return [self._build_draft(section_title, normalized_text, best_evidence, answer_excerpt)]
+        local_draft = self._build_draft(section_title, normalized_text, best_evidence, answer_excerpt)
+        ai_draft = self._try_build_ai_draft(
+            session=session,
+            section_title=section_title,
+            chunk_text=normalized_text,
+            evidence=best_evidence,
+            answer_excerpt=answer_excerpt,
+            fallback_draft=local_draft,
+        )
+        return [ai_draft or local_draft]
 
     def _extract_evidence_units(self, chunk_text: str) -> list[QuestionEvidenceUnit]:
         """把正文提取成可出题的结构化原文证据单元。"""
@@ -297,6 +313,65 @@ class QuestionGenerationService:
             evidence_end=evidence.end,
             analysis="这道题用于检查你是否能根据标题回忆该知识点的核心内容。",
             difficulty=1,
+        )
+
+    def _try_build_ai_draft(
+        self,
+        *,
+        session: Session | None,
+        section_title: str,
+        chunk_text: str,
+        evidence: QuestionEvidenceUnit,
+        answer_excerpt: str,
+        fallback_draft: QuestionDraft,
+    ) -> QuestionDraft | None:
+        """尝试让大模型改写题目问法，失败时回退规则题目。"""
+        if session is None:
+            return None
+
+        response = llm_gateway_service.chat_json(
+            session,
+            "question_generation",
+            system_prompt=(
+                "你是一个面试题润色助手。"
+                "你不能引入原文没有出现的新事实，只能基于给定的 section、chunk 和 evidence，"
+                "把题目改写得更自然、更像真实面试官发问。"
+                "请只返回 JSON，对象格式必须为"
+                " {\"question\": \"...\", \"analysis\": \"...\", \"difficulty\": 1}。"
+            ),
+            user_prompt=(
+                f"section_title: {section_title}\n"
+                f"chunk_text: {chunk_text}\n"
+                f"evidence_kind: {evidence.kind}\n"
+                f"evidence_text: {evidence.text}\n"
+                f"标准答案(必须忠于原文，不可改写事实): {answer_excerpt}\n"
+                f"当前规则题目: {fallback_draft.question}\n"
+                "请输出一个更自然的题目问法，并给一条简短分析说明，difficulty 取 1~3。"
+            ),
+            temperature=0.4,
+        )
+        if response is None:
+            return None
+
+        question = (response.get("question") or "").strip()
+        analysis = (response.get("analysis") or fallback_draft.analysis or "").strip()
+        difficulty = response.get("difficulty", fallback_draft.difficulty)
+        if not question:
+            return None
+        if not isinstance(difficulty, int) or difficulty < 1 or difficulty > 3:
+            difficulty = fallback_draft.difficulty
+
+        return QuestionDraft(
+            question_type=fallback_draft.question_type,
+            question=question,
+            answer=answer_excerpt,
+            source_excerpt=answer_excerpt,
+            evidence_kind=evidence.kind,
+            evidence_index=evidence.index,
+            evidence_start=evidence.start,
+            evidence_end=evidence.end,
+            analysis=analysis or fallback_draft.analysis,
+            difficulty=difficulty,
         )
 
     def _classify_unit_kind(self, unit: str) -> str:
