@@ -1,6 +1,6 @@
+from .question_draft_service import QuestionDraft
 from .question_generation_service import (
     QuestionDocumentNotFoundError,
-    QuestionDraft,
     QuestionGenerationResult,
     QuestionGenerationService,
     QuestionServiceError,
