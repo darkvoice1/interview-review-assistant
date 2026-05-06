@@ -7,7 +7,12 @@ from .document_upload_service import (
     DocumentServiceError,
     DocumentUploadService,
 )
-from .markdown_parser_service import MarkdownParserService, markdown_parser_service
+from .markdown_parser_service import (
+    MarkdownParseResult,
+    MarkdownParserService,
+    MarkdownSection,
+    markdown_parser_service,
+)
 
 __all__ = [
     "BASE_DIR",
@@ -18,6 +23,8 @@ __all__ = [
     "DocumentProcessingResult",
     "DocumentUploadService",
     "DocumentQueryService",
+    "MarkdownParseResult",
     "MarkdownParserService",
+    "MarkdownSection",
     "markdown_parser_service",
 ]

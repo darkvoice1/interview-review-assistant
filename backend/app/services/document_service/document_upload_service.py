@@ -46,7 +46,7 @@ class DocumentUploadService:
             raise DocumentServiceError("Markdown 文件需使用 UTF-8 编码。") from exc
 
         parsed_result = markdown_parser_service.parse(content_raw)
-        document_title = self._resolve_document_title(filename, parsed_result["title"])
+        document_title = self._resolve_document_title(filename, parsed_result.title)
 
         document_service_package.DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -65,7 +65,16 @@ class DocumentUploadService:
             session.add(document)
             session.flush()
 
-            chunks = chunk_service.create_chunks(document.id, parsed_result["sections"], session=session)
+            chunk_inputs = [
+                {
+                    "section_title": section.section_title,
+                    "section_level": section.section_level,
+                    "section_path": section.section_path,
+                    "content": section.content,
+                }
+                for section in parsed_result.sections
+            ]
+            chunks = chunk_service.create_chunks(document.id, chunk_inputs, session=session)
             for chunk in chunks:
                 session.add(chunk)
 
@@ -80,7 +89,7 @@ class DocumentUploadService:
         return DocumentProcessingResult(
             document=document,
             chunk_count=len(chunks),
-            section_count=parsed_result["section_count"],
+            section_count=parsed_result.section_count,
         )
 
     def _ensure_markdown_file(self, filename: str | None) -> str:
