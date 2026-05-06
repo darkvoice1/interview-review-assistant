@@ -77,6 +77,44 @@ def test_save_and_list_llm_provider_settings(monkeypatch, tmp_path: Path) -> Non
 
 
 
+def test_save_provider_can_keep_existing_api_key(tmp_path: Path) -> None:
+    """更新配置但不重新输入 key 时，应沿用数据库里已保存的 API Key。"""
+    db_path = tmp_path / "test.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        provider = settings_service.save_provider(
+            session,
+            provider_name="openrouter",
+            display_name="OpenRouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key="sk-or-v1-1234567890abcdef",
+            default_model="openai/gpt-4.1-mini",
+            is_enabled=True,
+            use_for_chunking=False,
+            use_for_question_generation=False,
+        )
+        original_key = provider.api_key
+
+    with Session(engine) as session:
+        provider = settings_service.save_provider(
+            session,
+            provider_name="openrouter",
+            display_name="OpenRouter Updated",
+            base_url="https://openrouter.ai/api/v1",
+            api_key=None,
+            default_model="openai/gpt-4.1-mini",
+            is_enabled=True,
+            use_for_chunking=True,
+            use_for_question_generation=False,
+        )
+        assert provider.display_name == "OpenRouter Updated"
+        assert provider.api_key == original_key
+        assert provider.use_for_chunking is True
+
+
+
 def test_get_active_provider_for_task_returns_enabled_provider(tmp_path: Path) -> None:
     """设置服务应能按任务取回当前启用且可用的厂商。"""
     db_path = tmp_path / "test.db"
@@ -144,6 +182,73 @@ def test_test_provider_connectivity_returns_probe_result(monkeypatch) -> None:
 
 
 
+def test_test_provider_connectivity_can_use_saved_api_key(monkeypatch, tmp_path: Path) -> None:
+    """测试连接在未重新输入 key 时应能回退到数据库中已保存的 key。"""
+    db_path = tmp_path / "test.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+
+    monkeypatch.setattr(session_module, "engine", engine)
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        settings_service.save_provider(
+            session,
+            provider_name="openrouter",
+            display_name="OpenRouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key="sk-or-v1-1234567890abcdef",
+            default_model="openai/gpt-4.1-mini",
+            is_enabled=True,
+            use_for_chunking=False,
+            use_for_question_generation=False,
+        )
+
+    def override_get_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+
+    captured = {}
+
+    def fake_test_provider_connectivity(**kwargs):
+        captured.update(kwargs)
+        return type(
+            "FakeConnectivityResult",
+            (),
+            {
+                "success": True,
+                "provider_name": kwargs["provider_name"],
+                "display_name": kwargs["display_name"],
+                "base_url": kwargs["base_url"],
+                "model": kwargs["default_model"],
+                "message": "pong",
+            },
+        )()
+
+    monkeypatch.setattr(llm_gateway_service, "test_provider_connectivity", fake_test_provider_connectivity)
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/settings/providers/test",
+                json={
+                    "provider_name": "openrouter",
+                    "display_name": "OpenRouter",
+                    "base_url": "https://openrouter.ai/api/v1",
+                    "api_key": None,
+                    "default_model": "openai/gpt-4.1-mini",
+                    "use_saved_key": True,
+                },
+            )
+
+        assert response.status_code == 200
+        assert captured["api_key"] == "sk-or-v1-1234567890abcdef"
+    finally:
+        app.dependency_overrides.clear()
+
+
+
 def test_test_provider_connectivity_returns_400_when_gateway_rejects(monkeypatch) -> None:
     """设置接口应能把网关层的配置错误转成 400。"""
     monkeypatch.setattr(
@@ -159,8 +264,9 @@ def test_test_provider_connectivity_returns_400_when_gateway_rejects(monkeypatch
                 "provider_name": "openrouter",
                 "display_name": "OpenRouter",
                 "base_url": "https://openrouter.ai/api/v1",
-                "api_key": "sk-or-v1-1234567890abcdef",
+                "api_key": None,
                 "default_model": "",
+                "use_saved_key": False,
             },
         )
 

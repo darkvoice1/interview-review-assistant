@@ -1,6 +1,5 @@
-﻿<template>
+<template>
   <div class="shell">
-    <!-- Mobile Header -->
     <header class="mobile-header">
       <button class="mobile-menu-btn" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="菜单">
         <span class="hamburger" :class="{ open: mobileMenuOpen }">
@@ -10,14 +9,12 @@
       <span class="mobile-logo">面经复习助手</span>
     </header>
 
-    <!-- Overlay for mobile -->
     <div
       v-if="mobileMenuOpen"
       class="overlay"
       @click="mobileMenuOpen = false"
     ></div>
 
-    <!-- Sidebar -->
     <aside class="sidebar" :class="{ open: mobileMenuOpen }">
       <div class="sidebar__brand">
         <div class="sidebar__logo">
@@ -59,7 +56,6 @@
       </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="main">
       <div class="main__header">
         <h1 class="main__title">{{ currentPageTitle }}</h1>
@@ -109,6 +105,11 @@ const navItems = [
     label: '统计',
     icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   },
+  {
+    path: '/settings',
+    label: '设置',
+    icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  },
 ]
 
 const pageMeta = {
@@ -117,6 +118,7 @@ const pageMeta = {
   '/review': { title: '今日复习', subtitle: '一次一题 · 专注复习' },
   '/wrong-questions': { title: '错题复盘', subtitle: '回顾薄弱知识点' },
   '/statistics': { title: '学习统计', subtitle: '复习数据与趋势概览' },
+  '/settings': { title: '模型设置', subtitle: '管理厂商配置并测试连接状态' },
 }
 
 const currentPageTitle = computed(() => {
@@ -141,7 +143,6 @@ function isActive(path) {
   min-height: 100vh;
 }
 
-/* ── Mobile Header ── */
 .mobile-header {
   display: none;
   position: fixed;
@@ -204,7 +205,6 @@ function isActive(path) {
   transform: translateY(-6px) rotate(-45deg);
 }
 
-/* ── Overlay ── */
 .overlay {
   display: none;
   position: fixed;
@@ -213,7 +213,6 @@ function isActive(path) {
   background: rgba(28, 28, 30, 0.3);
 }
 
-/* ── Sidebar ── */
 .sidebar {
   position: fixed;
   top: 0;
@@ -329,7 +328,6 @@ function isActive(path) {
   color: var(--color-text-tertiary);
 }
 
-/* ── Main ── */
 .main {
   flex: 1;
   margin-left: 220px;
@@ -371,7 +369,6 @@ function isActive(path) {
   }
 }
 
-/* ── Responsive ── */
 @media (max-width: 768px) {
   .mobile-header {
     display: flex;
@@ -403,4 +400,3 @@ function isActive(path) {
   }
 }
 </style>
-

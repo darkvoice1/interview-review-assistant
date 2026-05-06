@@ -5,6 +5,7 @@ import DocumentsView from "../views/DocumentsView.vue";
 import ReviewView from "../views/ReviewView.vue";
 import WrongQuestionsView from "../views/WrongQuestionsView.vue";
 import StatisticsView from "../views/StatisticsView.vue";
+import SettingsView from "../views/SettingsView.vue";
 
 const routes = [
   {
@@ -31,6 +32,11 @@ const routes = [
     path: "/statistics",
     name: "statistics",
     component: StatisticsView,
+  },
+  {
+    path: "/settings",
+    name: "settings",
+    component: SettingsView,
   },
 ];
 

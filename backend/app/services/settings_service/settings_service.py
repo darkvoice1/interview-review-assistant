@@ -81,6 +81,11 @@ class SettingsService:
         )
         return session.exec(statement).first()
 
+    def get_provider_by_name(self, session: Session, provider_name: str) -> LlmProviderSetting | None:
+        """按 provider_name 读取单个厂商配置。"""
+        statement = select(LlmProviderSetting).where(LlmProviderSetting.provider_name == provider_name)
+        return session.exec(statement).first()
+
     def save_provider(
         self,
         session: Session,
@@ -88,7 +93,7 @@ class SettingsService:
         provider_name: str,
         display_name: str,
         base_url: str | None,
-        api_key: str,
+        api_key: str | None,
         default_model: str | None,
         is_enabled: bool,
         use_for_chunking: bool,
@@ -98,13 +103,16 @@ class SettingsService:
         statement = select(LlmProviderSetting).where(LlmProviderSetting.provider_name == provider_name)
         provider = session.exec(statement).first()
         now = utc_now()
+        normalized_api_key = (api_key or "").strip()
 
         if provider is None:
+            if not normalized_api_key:
+                raise SettingsServiceError("首次保存厂商配置时必须提供 API Key。")
             provider = LlmProviderSetting(
                 provider_name=provider_name,
                 display_name=display_name,
                 base_url=base_url,
-                api_key=api_key,
+                api_key=normalized_api_key,
                 default_model=default_model,
                 is_enabled=is_enabled,
                 use_for_chunking=use_for_chunking,
@@ -115,7 +123,8 @@ class SettingsService:
         else:
             provider.display_name = display_name
             provider.base_url = base_url
-            provider.api_key = api_key
+            if normalized_api_key:
+                provider.api_key = normalized_api_key
             provider.default_model = default_model
             provider.is_enabled = is_enabled
             provider.use_for_chunking = use_for_chunking

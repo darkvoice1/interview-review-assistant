@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
 /**
  * 统一处理前端到后端的请求。
@@ -55,4 +55,16 @@ export function apiUpload(path, file, fieldName = "file") {
     method: "POST",
     body: formData,
   });
+}
+
+export function fetchSettings() {
+  return apiGet('/settings');
+}
+
+export function saveProviderSettings(payload) {
+  return apiPost('/settings/providers', payload);
+}
+
+export function testProviderConnection(payload) {
+  return apiPost('/settings/providers/test', payload);
 }

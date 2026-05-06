@@ -10,7 +10,7 @@ class LlmProviderSettingCreate(BaseModel):
     provider_name: str
     display_name: str
     base_url: Optional[str] = None
-    api_key: str = Field(min_length=1)
+    api_key: Optional[str] = None
     default_model: Optional[str] = None
     is_enabled: bool = True
     use_for_chunking: bool = False
@@ -47,8 +47,9 @@ class LlmProviderConnectivityTestRequest(BaseModel):
     provider_name: str
     display_name: str
     base_url: Optional[str] = None
-    api_key: str = Field(min_length=1)
+    api_key: Optional[str] = None
     default_model: Optional[str] = None
+    use_saved_key: bool = False
 
 
 class LlmProviderConnectivityTestRead(BaseModel):

@@ -10,7 +10,7 @@ from app.schemas.settings import (
     SettingsSummaryRead,
 )
 from app.services.llm_service import LlmGatewayError, llm_gateway_service
-from app.services.settings_service import settings_service
+from app.services.settings_service import SettingsServiceError, settings_service
 
 router = APIRouter()
 
@@ -44,17 +44,21 @@ def get_settings(session: Session = Depends(get_session)) -> SettingsSummaryRead
 @router.post("/providers", response_model=LlmProviderSettingRead)
 def save_provider(payload: LlmProviderSettingCreate, session: Session = Depends(get_session)) -> LlmProviderSettingRead:
     """新增或更新单个大模型厂商配置。"""
-    provider = settings_service.save_provider(
-        session,
-        provider_name=payload.provider_name,
-        display_name=payload.display_name,
-        base_url=payload.base_url,
-        api_key=payload.api_key,
-        default_model=payload.default_model,
-        is_enabled=payload.is_enabled,
-        use_for_chunking=payload.use_for_chunking,
-        use_for_question_generation=payload.use_for_question_generation,
-    )
+    try:
+        provider = settings_service.save_provider(
+            session,
+            provider_name=payload.provider_name,
+            display_name=payload.display_name,
+            base_url=payload.base_url,
+            api_key=payload.api_key,
+            default_model=payload.default_model,
+            is_enabled=payload.is_enabled,
+            use_for_chunking=payload.use_for_chunking,
+            use_for_question_generation=payload.use_for_question_generation,
+        )
+    except SettingsServiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     return LlmProviderSettingRead(
         id=provider.id,
         provider_name=provider.provider_name,
@@ -71,14 +75,23 @@ def save_provider(payload: LlmProviderSettingCreate, session: Session = Depends(
 
 
 @router.post("/providers/test", response_model=LlmProviderConnectivityTestRead)
-def test_provider_connectivity(payload: LlmProviderConnectivityTestRequest) -> LlmProviderConnectivityTestRead:
+def test_provider_connectivity(
+    payload: LlmProviderConnectivityTestRequest,
+    session: Session = Depends(get_session),
+) -> LlmProviderConnectivityTestRead:
     """使用前端当前填写的配置做一次最小连通性测试。"""
+    provider = settings_service.get_provider_by_name(session, payload.provider_name)
+    effective_api_key = (payload.api_key or "").strip()
+
+    if payload.use_saved_key and not effective_api_key and provider is not None:
+        effective_api_key = provider.api_key
+
     try:
         result = llm_gateway_service.test_provider_connectivity(
             provider_name=payload.provider_name,
             display_name=payload.display_name,
             base_url=payload.base_url,
-            api_key=payload.api_key,
+            api_key=effective_api_key,
             default_model=payload.default_model,
         )
     except LlmGatewayError as exc:
